@@ -1,11 +1,13 @@
-# 3D simulation of heat disipation 
+# 3D simulation of heat dissipation 
 # made by Bruno Villasenor
 # contact me at: bvillasen@gmail.com
 # personal web page:  https://bvillasen.webs.com
 # github: https://github.com/bvillasen
 
-#To run you need these complementary files: volumeRender.py, CUDAvolumeRender.cu, cudaTools.py
-
+#To run you need these complementary files: CUDAheat3D.cu, volumeRender.py, CUDAvolumeRender.cu, cudaTools.py
+#you can find them in my github: 
+#                               https://github.com/bvillasen/volumeRender
+#                               https://github.com/bvillasen/tools
 import sys, time, os
 import numpy as np
 import pylab as plt
@@ -151,32 +153,14 @@ finalMemory = getFreeMemory( show=False )
 print " Total Global Memory Used: {0} Mbytes".format(float(initialMemory-finalMemory)/1e6) 
 
 
-def stepF():
+def stepFunction():
   sendToScreen( temp_d )
   [rk4Step() for i in range(10)]
   
-  
-
-
-  
-
-
-
 #change volumeRender default step function for heat step function
-volumeRender.stepFunc = stepF
+volumeRender.stepFunc = stepFunction
 
 #run volumeRender animation
 volumeRender.animate()
-
-
-
-
-
-
-#plt.imshow(temp_d.get()[64,:,:])
-#plt.colorbar()
-#plt.show()
-
-
 
 
