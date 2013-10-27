@@ -18,9 +18,9 @@ import pycuda.gpuarray as gpuarray
 #Add Modules from other directories
 currentDirectory = os.getcwd()
 parentDirectory = currentDirectory[:currentDirectory.rfind("/")]
-myToolsDirectory = parentDirectory + "/myTools"
+toolsDirectory = parentDirectory + "/tools"
 volumeRenderDirectory = parentDirectory + "/volumeRender"
-sys.path.extend( [myToolsDirectory, volumeRenderDirectory] )
+sys.path.extend( [toolsDirectory, volumeRenderDirectory] )
 globals()["stepFunc"] = None
 import volumeRender
 from cudaTools import  gpuArray3DtocudaArray, setCudaDevice, getFreeMemory
