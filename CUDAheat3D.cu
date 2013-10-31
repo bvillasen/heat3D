@@ -39,6 +39,25 @@ __device__ float heatCore( int nWidth, int nHeight, float nDepth, float t, float
   return result;
 }
 
+__global__ void euler_kernel_shared( int nWidth, int nHeight, int nDepth, float slopeCoef, float weight, 
+				      float xMin, float yMin, float zMin, float dx, float dy, float dz, float t, float dt, 
+				      float *temp,
+				      float *inputTemp, float *outputTemp,
+				      float *tempRunge,
+				      int lastRK4Step){
+  int t_j = blockIdx.x*blockDim.x + threadIdx.x;
+  int t_i = blockIdx.y*blockDim.y + threadIdx.y;
+  int t_k = blockIdx.z*blockDim.z + threadIdx.z;
+  int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+
+  //copy data to shared memory
+  __shared__ float shrd_temp[ %(BLOCK_WIDTH)s ][ %(BLOCK_HEIGHT)s ][ %(BLOCK_DEPTH)s ];
+  shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z] = inputTemp[tid];
+  __syncthreads();
+  
+  outputTemp[tid] = shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z];
+
+}
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////           EULER                //////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

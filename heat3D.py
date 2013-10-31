@@ -75,7 +75,8 @@ cudaDevice = setCudaDevice(devN=useDevice, usingAnimation=True )
 
 #Read and compile CUDA code
 print "Compiling CUDA code"
-cudaCodeString = open("CUDAheat3D.cu", "r").read()
+cudaCodeString_raw = open("CUDAheat3D.cu", "r").read()
+cudaCodeString = cudaCodeString_raw % { "BLOCK_WIDTH":block3D[0], "BLOCK_HEIGHT":block3D[1], "BLOCK_DEPTH":block3D[2], }
 cudaCode = SourceModule(cudaCodeString)
 tex_tempIn = cudaCode.get_texref("tex_tempIn")
 surf_tempOut = cudaCode.get_surfref("surf_tempOut")
@@ -135,7 +136,7 @@ def rk4Step():
   simulationTime += dt
 ########################################################################  
   
-#Initialize all data
+#Initialize all gpu data
 print "Initializing Data"
 initialMemory = getFreeMemory( show=True )  
 #Set initial temperature
@@ -143,9 +144,12 @@ temp_h = np.zeros([nDepth, nHeight, nWidth], dtype = np.float32)
 temp_d = gpuarray.to_gpu(temp_h)
 tempRunge_d = gpuarray.to_gpu( np.zeros_like(temp_h) )
 tempRunge_d.set(temp_h)
+#For texture version
 temp_dArray, copyTempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=True )
 k1Temp_dArray, copyk1TempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=True )
 k2Temp_dArray, copyk2TempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=True )
+#For shared version
+
 #memory for plotting
 plotData_d = gpuarray.to_gpu(np.zeros([nDepth, nHeight, nWidth], dtype = np.uint8))
 volumeRender.plotData_dArray, copyToScreenArray = gpuArray3DtocudaArray( plotData_d )
@@ -157,10 +161,10 @@ def stepFunction():
   sendToScreen( temp_d )
   [rk4Step() for i in range(10)]
   
-#change volumeRender default step function for heat step function
+#change volumeRender default step function for heat3D step function
 volumeRender.stepFunc = stepFunction
 
 #run volumeRender animation
-volumeRender.animate()
+#volumeRender.animate()
 
 
