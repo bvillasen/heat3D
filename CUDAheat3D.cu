@@ -41,7 +41,7 @@ __device__ float heatCore( int nWidth, int nHeight, float nDepth, float t, float
 
 __global__ void euler_kernel_shared( int nWidth, int nHeight, int nDepth, float slopeCoef, float weight, 
 				      float xMin, float yMin, float zMin, float dx, float dy, float dz, float t, float dt, 
-				      float *temp,
+				      float *tempFirst,
 				      float *inputTemp, float *outputTemp,
 				      float *tempRunge,
 				      int lastRK4Step){
@@ -50,12 +50,60 @@ __global__ void euler_kernel_shared( int nWidth, int nHeight, int nDepth, float 
   int t_k = blockIdx.z*blockDim.z + threadIdx.z;
   int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
 
-  //copy data to shared memory
-  __shared__ float shrd_temp[ %(BLOCK_WIDTH)s ][ %(BLOCK_HEIGHT)s ][ %(BLOCK_DEPTH)s ];
-  shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z] = inputTemp[tid];
-  __syncthreads();
+//   //copy data to shared memory
+//   __shared__ float shrd_temp[ %(BLOCK_WIDTH)s + 2 ][ %(BLOCK_HEIGHT)s + 2 ][ %(BLOCK_DEPTH)s + 2 ];
+//   shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z] = inputTemp[tid];
+//   __syncthreads();
+//   
+  float dxInv = 1.0f/dx;
+  float dyInv = 1.0f/dy;
+  float dzInv = 1.0f/dz;
+   
+//   float centerFirst =  tempFirst[tid];
+  float center = inputTemp[tid];
+  float laplacian = 0.f;
+  int tid_1, tid_2;
+  float val1, val2;
+  //Add x derivative
+  tid_1 = (t_j+1) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  tid_2 = (t_j-1) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  val1 = inputTemp[tid_1];
+  val2 = inputTemp[tid_2];
+  if (t_j == 0) val2 = 0.8f;
+  if (t_j == nWidth -1 ) val1 = 0.0f;
+  laplacian += ( val1 + val2 - 2.f*center)*dxInv*dxInv;
+  //Add y derivative
+  tid_1 = t_j + (t_i+1)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  tid_2 = t_j + (t_i-1)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  val1 = inputTemp[tid_1];
+  val2 = inputTemp[tid_2];
+  if (t_i == 0) val2 = 0.8f;
+  if (t_i == nHeight -1 ) val1 = 0.0f;
+  laplacian += ( val1 + val2 - 2.f*center)*dyInv*dyInv;
+  //Add z derivative
+  tid_1 = t_j + t_i*blockDim.x*gridDim.x + (t_k+1)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  tid_2 = t_j + t_i*blockDim.x*gridDim.x + (t_k-1)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+  val1 = inputTemp[tid_1];
+  val2 = inputTemp[tid_2];
+  if (t_k == 0) val2 = 0.8f;
+  if (t_k == nDepth -1 ) val1 = 0.0f;
+  laplacian += ( val1 + val2 - 2.f*center)*dzInv*dzInv;
   
-  outputTemp[tid] = shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z];
+  float increment = dt * laplacian;
+  
+  float stepValue;
+  if (lastRK4Step ){
+    stepValue = tempRunge[tid] + slopeCoef*increment/6.0f;
+    tempRunge[tid] = stepValue;
+    outputTemp[tid] = stepValue;
+  }
+  else{
+    stepValue = tempFirst[tid] + weight*increment;
+    outputTemp[tid] = stepValue;
+    tempRunge[tid] = tempRunge[tid] + slopeCoef*increment/6.0f;
+  }
+  
+//   outputTemp[tid] = shrd_temp[threadIdx.x][threadIdx.y][threadIdx.z];
 
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,8 +120,8 @@ __global__ void euler_kernel_texture( int nWidth, int nHeight, int nDepth, float
   int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
 
   float incrementReal;  
-  incrementReal = heatCore( nWidth, nHeight, nDepth, t, xMin, yMin, zMin, dx, dy, dz, t_i, t_j, t_k);
-  incrementReal = dt*incrementReal;
+  incrementReal = dt * heatCore( nWidth, nHeight, nDepth, t, xMin, yMin, zMin, dx, dy, dz, t_i, t_j, t_k);
+//   incrementReal = dt*incrementReal;
  
   float valueReal;
   if (lastRK4Step ){

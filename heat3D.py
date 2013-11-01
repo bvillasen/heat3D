@@ -80,7 +80,8 @@ cudaCodeString = cudaCodeString_raw % { "BLOCK_WIDTH":block3D[0], "BLOCK_HEIGHT"
 cudaCode = SourceModule(cudaCodeString)
 tex_tempIn = cudaCode.get_texref("tex_tempIn")
 surf_tempOut = cudaCode.get_surfref("surf_tempOut")
-eulerKernel = cudaCode.get_function("euler_kernel_texture" )
+eulerKernel_tex = cudaCode.get_function("euler_kernel_texture" )
+eulerKernel_shrd = cudaCode.get_function("euler_kernel_shared" )
 ########################################################################
 from pycuda.elementwise import ElementwiseKernel
 ########################################################################
@@ -99,12 +100,12 @@ def sendToScreen( plotData ):
   floatToUchar( plotData, plotData_d )
   copyToScreenArray()
 ########################################################################
-def rk4Step():
+def rk4Step_text():
   global simulationTime
   slopeCoef, weight = np.float32(1.0), np.float32(0.5)
   tex_tempIn.set_array(temp_dArray)
   surf_tempOut.set_array(k1Temp_dArray)
-  eulerKernel( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+  eulerKernel_tex( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
 	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime),  dt,
 	      temp_d, tempRunge_d, np.int32(0),
 	      grid=grid3D,block=block3D, texrefs=[tex_tempIn])
@@ -112,7 +113,7 @@ def rk4Step():
   slopeCoef = np.float32(2.0)
   tex_tempIn.set_array(k1Temp_dArray)
   surf_tempOut.set_array(k2Temp_dArray)
-  eulerKernel( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+  eulerKernel_tex( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
 	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime+dt*0.5),  dt,
 	      temp_d, tempRunge_d, np.int32(0),
 	      grid=grid3D,block=block3D, texrefs=[tex_tempIn])
@@ -120,7 +121,7 @@ def rk4Step():
   weight = np.float32(1.0)
   tex_tempIn.set_array(k2Temp_dArray)
   surf_tempOut.set_array(k1Temp_dArray)
-  eulerKernel( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+  eulerKernel_tex( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
 	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime+dt*0.5),  dt,
 	      temp_d, tempRunge_d, np.int32(0),
 	      grid=grid3D,block=block3D, texrefs=[tex_tempIn])
@@ -128,19 +129,61 @@ def rk4Step():
   slopeCoef = np.float32(1.0)
   tex_tempIn.set_array(k1Temp_dArray)
   surf_tempOut.set_array(temp_dArray)
-  eulerKernel( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+  eulerKernel_tex( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
 	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime),  dt,
 	      temp_d, tempRunge_d, np.int32(1),
 	      grid=grid3D,block=block3D, texrefs=[tex_tempIn])
   copyDtoD_float( tempRunge_d, temp_d )
   simulationTime += dt
 ########################################################################  
+def rk4Step_shrd():
+  global simulationTime
+  slopeCoef, weight = np.float32(1.0), np.float32(0.5)
+  #tex_tempIn.set_array(temp_dArray)
+  #surf_tempOut.set_array(k1Temp_dArray)
+  eulerKernel_shrd( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime),  dt,
+	      temp_d, temp_d, k1Temp_d, tempRunge_d, np.int32(0),
+	      grid=grid3D,block=block3D)
+	      
+  slopeCoef = np.float32(2.0)
+  #tex_tempIn.set_array(k1Temp_dArray)
+  #surf_tempOut.set_array(k2Temp_dArray)
+  eulerKernel_shrd( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime+dt*0.5),  dt,
+	      temp_d, k1Temp_d, k2Temp_d, tempRunge_d, np.int32(0),
+	      grid=grid3D,block=block3D)
+  
+  weight = np.float32(1.0)
+  #tex_tempIn.set_array(k2Temp_dArray)
+  #surf_tempOut.set_array(k1Temp_dArray)
+  eulerKernel_shrd( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime+dt*0.5),  dt,
+	      temp_d, k2Temp_d, k1Temp_d, tempRunge_d, np.int32(0),
+	      grid=grid3D,block=block3D)
+  
+  slopeCoef = np.float32(1.0)
+  #tex_tempIn.set_array(k1Temp_dArray)
+  #surf_tempOut.set_array(temp_dArray)
+  eulerKernel_shrd( np.int32(nWidth), np.int32(nHeight), np.int32(nDepth), slopeCoef, weight, 
+	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime),  dt,
+	      temp_d, k1Temp_d, temp_d, tempRunge_d, np.int32(1),
+	      grid=grid3D,block=block3D)
+  #copyDtoD_float( tempRunge_d, temp_d )
+  simulationTime += dt
+########################################################################  
+
+
+
+
+
+
   
 #Initialize all gpu data
 print "Initializing Data"
 initialMemory = getFreeMemory( show=True )  
 #Set initial temperature
-temp_h = np.zeros([nDepth, nHeight, nWidth], dtype = np.float32)
+temp_h = 0.3*np.ones([nDepth, nHeight, nWidth], dtype = np.float32)
 temp_d = gpuarray.to_gpu(temp_h)
 tempRunge_d = gpuarray.to_gpu( np.zeros_like(temp_h) )
 tempRunge_d.set(temp_h)
@@ -149,7 +192,8 @@ temp_dArray, copyTempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=Tru
 k1Temp_dArray, copyk1TempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=True )
 k2Temp_dArray, copyk2TempArray = gpuArray3DtocudaArray( temp_d, allowSurfaceBind=True )
 #For shared version
-
+k1Temp_d = gpuarray.to_gpu(np.zeros_like(temp_h))
+k2Temp_d = gpuarray.to_gpu(np.zeros_like(temp_h))
 #memory for plotting
 plotData_d = gpuarray.to_gpu(np.zeros([nDepth, nHeight, nWidth], dtype = np.uint8))
 volumeRender.plotData_dArray, copyToScreenArray = gpuArray3DtocudaArray( plotData_d )
@@ -157,9 +201,11 @@ finalMemory = getFreeMemory( show=False )
 print " Total Global Memory Used: {0} Mbytes".format(float(initialMemory-finalMemory)/1e6) 
 
 
+
+
 def stepFunction():
   sendToScreen( temp_d )
-  [rk4Step() for i in range(10)]
+  [rk4Step_shrd() for i in range(10)]
   
 #change volumeRender default step function for heat3D step function
 volumeRender.stepFunc = stepFunction
