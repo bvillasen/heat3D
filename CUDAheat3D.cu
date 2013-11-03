@@ -56,7 +56,7 @@ __global__ void euler_kernel_shared( int nWidth, int nHeight, int nDepth, float 
   
   //copy data to shared memory
   int tid2 = tid;
-  const int nNeigh = 1;
+  const int nNeigh = 2;  //Number of neighbors for spatial derivatives
   int t_x = threadIdx.x + nNeigh;
   int t_y = threadIdx.y + nNeigh;
   int t_z = threadIdx.z + nNeigh;
@@ -64,133 +64,51 @@ __global__ void euler_kernel_shared( int nWidth, int nHeight, int nDepth, float 
   __shared__ float shrd_temp[ %(BLOCK_WIDTH)s + 2*nNeigh ][ %(BLOCK_HEIGHT)s + 2*nNeigh ][ %(BLOCK_DEPTH)s + 2*nNeigh ];
   shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
   //fill x halo
-  if ( t_x<=nNeigh ){
+  if ( t_x<2*nNeigh ){
     tid2 = (t_j-nNeigh) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_j==0) val = 0.5f;
+    if (blockIdx.x==0) val = 0.5f;
     else val = inputTemp[tid2];
     shrd_temp[t_x-nNeigh][t_y][t_z] = val;
     tid2 = (t_j) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }
-  if ( t_x == blockDim.x ){
-    tid2 = (t_j+1) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_j==blockDim.x*gridDim.x-1) val = 0.5f;
+  if ( t_x >= blockDim.x ){
+    tid2 = (t_j+nNeigh) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+    if (blockIdx.x == gridDim.x-1) val = 0.5f;
     else val = inputTemp[tid2];
-    shrd_temp[blockDim.x+1][t_y][t_z] = val;
+    shrd_temp[t_x+nNeigh][t_y][t_z] = val;
     tid2 = (t_j) + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }
   //fill y halo
-  if ( t_y<=nNeigh ){
+  if ( t_y<2*nNeigh ){
     tid2 = (t_j) + (t_i-nNeigh)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_i==0) val = 0.f;
+    if (blockIdx.y==0) val = 0.f;
     else val = inputTemp[tid2];
     shrd_temp[t_x][t_y-nNeigh][t_z] = val;
     tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }
-  if ( t_y == blockDim.y ){
-    tid2 = (t_j) + (t_i+1)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_i==blockDim.y*gridDim.y-1) val = 0.f;
+  if ( t_y >= blockDim.y ){
+    tid2 = (t_j) + (t_i+nNeigh)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+    if (blockIdx.y == gridDim.y-1) val = 0.f;
     else val = inputTemp[tid2];
-    shrd_temp[t_x][blockDim.y+1][t_z] = val;
+    shrd_temp[t_x][t_y+nNeigh][t_z] = val;
     tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }  
   //fill z halo
-  if ( t_z<=nNeigh ){
+  if ( t_z<2*nNeigh ){
     tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + (t_k-nNeigh)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_k==0) val = 0.f;
+    if (blockIdx.z==0) val = 0.f;
     else val = inputTemp[tid2];
     shrd_temp[t_x][t_y][t_z-nNeigh] = val;
     tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + (t_k)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }
-  if ( t_z == blockDim.z ){
-    tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + (t_k+1)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-    if (t_k==blockDim.z*gridDim.z-1) val = 0.f;
+  if ( t_z >= blockDim.z ){
+    tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + (t_k+nNeigh)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
+    if (blockIdx.z == gridDim.z-1) val = 0.f;
     else val = inputTemp[tid2];
-    shrd_temp[t_x][t_y][blockDim.z+1] = val;
+    shrd_temp[t_x][t_y][t_z+nNeigh] = val;
     tid2 = (t_j) + (t_i)*blockDim.x*gridDim.x + (t_k)*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
   }    
   __syncthreads(); 
-  
-  
-  
-  
-/*  
-  //fill x halo
-  t_x -= 1;
-  if (t_x < 1) {
-    t_j -= 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (t_j == -1 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_j += 1;
-  }
-  t_x += 2;
-  if (t_x > nWidth ){
-    t_j += 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (blockIdx.x == gridDim.x-1 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_j -= 1;
-  }
-  t_x -= 1;
-  
-  //fill y halo
-  t_y -= 1;
-  if (t_y < 1) {
-    t_i -= 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (blockIdx.y == 0 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_i += 1;
-  }
-  t_y += 2;
-  if (t_y > nHeight ){
-    t_i += 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (blockIdx.y == gridDim.y-1 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_i -= 1;
-  }
-  t_y -= 1;  
-  
-  //fill z halo
-  t_z -= 1;
-  if (t_z < 1) {
-    t_k -= 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (blockIdx.z == 0 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_k += 1;
-  }
-  t_z += 2;
-  if (t_z > nDepth ){
-    t_k += 1;
-    tid2 = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-//     if (blockIdx.z == gridDim.z-1 ) shrd_temp[t_x][t_y][t_z] = 0.f;
-    shrd_temp[t_x][t_y][t_z] = inputTemp[tid2];
-    t_k -= 1;
-  }
-  t_z -= 1;    
-  
-  */
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   
 //   //fill x halo
