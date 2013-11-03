@@ -45,7 +45,7 @@ zMax, zMin = Lz/2, -Lz/2
 dx, dy, dz = Lx/(nWidth-1), Ly/(nHeight-1), Lz/(nDepth-1 )
 
 #set time parameters
-dt = 0.005
+dt = 0.01
 simulationTime = 0
 
 #Convert parameters to float32
@@ -169,7 +169,7 @@ def rk4Step_shrd():
 	      xMin,  yMin, zMin,  dx,  dy,  dz,  np.float32(simulationTime),  dt,
 	      temp_d, k1Temp_d, temp_d, tempRunge_d, np.int32(1),
 	      grid=grid3D,block=block3D)
-  #copyDtoD_float( tempRunge_d, temp_d )
+  copyDtoD_float( tempRunge_d, temp_d )
   simulationTime += dt
 ########################################################################  
 
@@ -183,7 +183,7 @@ def rk4Step_shrd():
 print "Initializing Data"
 initialMemory = getFreeMemory( show=True )  
 #Set initial temperature
-temp_h = 0.3*np.ones([nDepth, nHeight, nWidth], dtype = np.float32)
+temp_h = 0.5*np.ones([nDepth, nHeight, nWidth], dtype = np.float32)
 temp_d = gpuarray.to_gpu(temp_h)
 tempRunge_d = gpuarray.to_gpu( np.zeros_like(temp_h) )
 tempRunge_d.set(temp_h)
@@ -205,7 +205,7 @@ print " Total Global Memory Used: {0} Mbytes".format(float(initialMemory-finalMe
 
 def stepFunction():
   sendToScreen( temp_d )
-  [rk4Step_shrd() for i in range(10)]
+  [rk4Step_shrd() for i in range(20)]
   
 #change volumeRender default step function for heat3D step function
 volumeRender.stepFunc = stepFunction
